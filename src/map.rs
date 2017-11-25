@@ -1,8 +1,10 @@
 use std::collections::HashMap;
+use std::time::Duration;
 
 use ggez::GameResult;
 use ggez::Context;
 use ggez::graphics::{self, Color};
+use ggez::timer;
 
 use hex::Hex;
 
@@ -40,10 +42,11 @@ impl Map {
     pub fn draw(&self, ctx: &mut Context) -> GameResult<()> {
         graphics::set_background_color(ctx, Color::from((0, 0, 0)));
 
-        for (_, hex) in self.map.iter()/*.filter(|&(_, h)| h.position.1 == 0)*/ {
+        for (_, hex) in &self.map {
             hex.draw(ctx)?;
         }
 
+        timer::sleep(Duration::new(0, 0));
         Ok(())
     }
 }

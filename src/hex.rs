@@ -10,6 +10,7 @@ use unit::Unit;
 use feature::Feature;
 
 pub const SIZE: u32 = 50;
+pub const OFFSET: f32 = SIZE as f32;
 
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct Hex {
@@ -30,31 +31,37 @@ impl Hex {
     }
 
     fn pixel_position(&self) -> (f32, f32) {
-        let size = SIZE as f32;
         let q = self.position.0 as f32;
         let r = self.position.1 as f32;
 
-        (size * 3f32.sqrt() * (q + r/2.), size * 3./2. * r)
+        (OFFSET * 3f32.sqrt() * (q + r/2.), OFFSET * 3./2. * r)
     }
 
     fn corners(&self) -> ([Point; 6]) {
-        let size = SIZE as f32;
         let mut corners = [Point::zero(); 6];
+        let north = self.arc(Direction::North);
+        let south = self.arc(Direction::South);
 
-        let (center_x, center_y) = self.pixel_position();
-
-        for (i, val) in (0..6).enumerate()
-        {
-            let angle_deg = 60. * val as f32 + 30.;
-            let angle_rad = f32::consts::PI / 180. * angle_deg;
-            let x = center_x + size * f32::cos(angle_rad);
-            let y = center_y + size * f32::sin(angle_rad);
-
-            corners[i] = Point::new(x + size, y + size);
-
+        for (i, val) in north.into_iter().chain(south.into_iter()).enumerate() {
+            corners[i] = *val;
         }
 
         corners
+    }
+
+    fn arc(&self, direction: Direction) -> ([Point; 3]) {
+        let mut arc = [Point::zero(); 3];
+        let (center_x, center_y) = self.pixel_position();
+
+        for (i, val) in direction.degrees().into_iter().enumerate() {
+            let angle = val.to_radians();
+            let x = center_x + OFFSET * f32::cos(angle);
+            let y = center_y + OFFSET * f32::sin(angle);
+
+            arc[i] = Point::new(x + OFFSET, y + OFFSET);
+        }
+
+        arc
     }
 
     pub fn draw(&self, ctx: &mut Context) -> GameResult<()> {
@@ -70,6 +77,11 @@ impl Hex {
 
         graphics::set_color(ctx, color)?;
         graphics::polygon(ctx, DrawMode::Fill, &points)?;
+
+        if let Some(unit) = self.unit {
+            unit.draw(self.pixel_position(), ctx)?;
+        }
+
         Ok(())
     }
 }
@@ -77,4 +89,19 @@ impl Hex {
 #[derive(Clone, Copy, Debug, Deserialize)]
 pub enum VictoryPoint {
     HoldPoint,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize)]
+pub enum Direction {
+    North,
+    South,
+}
+
+impl Direction {
+    fn degrees(&self) -> [f32; 3] {
+        match *self {
+            Direction::North => [210., 270., 330.],
+            Direction::South => [30., 90., 150.],
+        }
+    }
 }

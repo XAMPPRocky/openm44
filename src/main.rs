@@ -1,3 +1,4 @@
+#[macro_use] extern crate lazy_static;
 #[macro_use] extern crate serde_derive;
 extern crate serde;
 extern crate serde_yaml as yaml;
@@ -68,6 +69,7 @@ fn run() -> GameResult<()> {
     let mut c = conf::Conf::new();
     c.window_width = WIDTH;
     c.window_height = HEIGHT;
+    c.vsync = true;
 
     let mut ctx = Context::load_from_conf("helloworld", "ggez", c).unwrap();
     let mut state = MainState::new(&mut ctx).unwrap();

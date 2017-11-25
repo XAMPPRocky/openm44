@@ -8,6 +8,7 @@ serde = "1"
 serde_derive = "1"
 serde_yaml = "0.7"
 ggez = "0.3"
+lazy_static = "0.2"
 
 [dependencies.yaml-merge-keys]
 version = "0.2"

@@ -1,15 +1,56 @@
 use std::fmt;
 
 use serde::de::{self, Deserialize, Deserializer, Visitor, MapAccess};
+use ggez::graphics::{self, Color, DrawMode, Font, Point, Rect, Text};
+use ggez::Context;
+use ggez::GameResult;
 
 use faction::Faction;
 use self::UnitType::*;
+use hex::OFFSET;
+
+const BOX_WIDTH: f32 = 80.;
+const BOX_HEIGHT: f32 = 20.;
+
+lazy_static! {
+    static ref FONT: Font = Font::default_font().unwrap();
+}
 
 #[derive(Clone, Copy, Debug)]
 pub struct Unit {
     pub unit_type: UnitType,
     pub current_health: u8,
     pub faction: Faction,
+}
+
+impl Unit {
+    pub fn draw(&self, (x, y): (f32, f32), ctx: &mut Context) -> GameResult<()> {
+        let x = x + OFFSET;
+        let y = y + OFFSET;
+        let unit_box = Rect::new(x, y, BOX_WIDTH, BOX_HEIGHT);
+
+        graphics::set_color(ctx, self.faction.colour())?;
+        graphics::rectangle(ctx, DrawMode::Fill, unit_box)?;
+        let invert = {
+            let mut color = graphics::get_color(ctx);
+            color.r = 1. - color.r;
+            color.g = 1. - color.g;
+            color.b = 1. - color.b;
+            color
+        };
+
+        graphics::set_color(ctx, invert)?;
+        let text = Text::new(ctx, &self.to_string(), &FONT)?;
+        graphics::draw(ctx, &text, Point::new(x, y), 0.)?;
+
+        Ok(())
+    }
+}
+
+impl fmt::Display for Unit {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}; {}: {}", self.faction, self.unit_type, self.current_health)
+    }
 }
 
 impl<'de> Deserialize<'de> for Unit {
@@ -116,5 +157,17 @@ impl UnitType {
             Artillery => 2,
             Infantry => 4,
         }
+    }
+}
+
+impl fmt::Display for UnitType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let unit = match *self {
+            Armor => "Arm",
+            Artillery => "Art",
+            Infantry => "Inf",
+        };
+
+        f.write_str(unit)
     }
 }
