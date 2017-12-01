@@ -1,19 +1,20 @@
 use std::fmt;
+use std::ops::Deref;
 
 use serde::de::{self, Deserialize, Deserializer, Visitor, MapAccess};
-use ggez::graphics::{self, Color, DrawMode, Font, Point, Rect, Text};
+use ggez::graphics::{self, DrawMode, Font, Point, Rect, Text};
 use ggez::Context;
 use ggez::GameResult;
 
 use faction::Faction;
 use self::UnitType::*;
-use hex::OFFSET;
+use hex::{Hex, OFFSET};
 
 const BOX_WIDTH: f32 = 80.;
 const BOX_HEIGHT: f32 = 20.;
 
 lazy_static! {
-    static ref FONT: Font = Font::default_font().unwrap();
+    pub static ref FONT: Font = Font::default_font().unwrap();
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -24,6 +25,9 @@ pub struct Unit {
 }
 
 impl Unit {
+    pub fn fire_at(&self, hex: &mut Hex) {
+    }
+
     pub fn draw(&self, (x, y): (f32, f32), ctx: &mut Context) -> GameResult<()> {
         let x = x + OFFSET;
         let y = y + OFFSET;
@@ -44,6 +48,14 @@ impl Unit {
         graphics::draw(ctx, &text, Point::new(x, y), 0.)?;
 
         Ok(())
+    }
+}
+
+impl Deref for Unit {
+    type Target = UnitType;
+
+    fn deref(&self) -> &Self::Target {
+        &self.unit_type
     }
 }
 
