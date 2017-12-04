@@ -9,6 +9,7 @@ use ggez::GameResult;
 use faction::Faction;
 use self::UnitType::*;
 use hex::{Hex, OFFSET};
+use dice::Dice;
 
 const BOX_WIDTH: f32 = 80.;
 const BOX_HEIGHT: f32 = 20.;
@@ -22,19 +23,17 @@ pub struct Unit {
     pub unit_type: UnitType,
     pub current_health: u8,
     pub faction: Faction,
+    pub moved: u8,
+    pub destroy: bool,
 }
 
 impl Unit {
-    pub fn fire_at(&self, hex: &mut Hex) {
-    }
-
     pub fn draw(&self, (x, y): (f32, f32), ctx: &mut Context) -> GameResult<()> {
-        let x = x + OFFSET;
-        let y = y + OFFSET;
         let unit_box = Rect::new(x, y, BOX_WIDTH, BOX_HEIGHT);
 
         graphics::set_color(ctx, self.faction.colour())?;
         graphics::rectangle(ctx, DrawMode::Fill, unit_box)?;
+
         let invert = {
             let mut color = graphics::get_color(ctx);
             color.r = 1. - color.r;
@@ -44,7 +43,8 @@ impl Unit {
         };
 
         graphics::set_color(ctx, invert)?;
-        let text = Text::new(ctx, &self.to_string(), &FONT)?;
+        let mut text = Text::new(ctx, &self.to_string(), &FONT)?;
+        text.set_filter(graphics::FilterMode::Nearest);
         graphics::draw(ctx, &text, Point::new(x, y), 0.)?;
 
         Ok(())
@@ -112,7 +112,8 @@ impl<'de> Deserialize<'de> for Unit {
                     current_health: _type.health(),
                     unit_type: _type,
                     faction: faction,
-
+                    moved: 0,
+                    destroy: false,
                 })
             }
         }
@@ -129,6 +130,19 @@ pub enum UnitType {
     Artillery,
 }
 
+macro_rules! is {
+    ($(($fn:ident: $item:ident),)*) => {
+        $(
+            fn $fn(&self) -> bool {
+                match *self {
+                    $item => true,
+                    _ => false,
+                }
+            }
+        )*
+    }
+}
+
 impl UnitType {
     pub fn movement(&self) -> u8 {
         match *self {
@@ -136,6 +150,12 @@ impl UnitType {
             Artillery => 1,
             Infantry => 2,
         }
+    }
+
+    is! {
+        (is_infantry: Infantry),
+        (is_armor: Armor),
+        (is_artillery: Artillery),
     }
 
     /// How far a unit can move and still be able to attack.
@@ -155,11 +175,11 @@ impl UnitType {
     }
 
     // [(range_threshold, damage)]
-    pub fn range_effectiveness(&self) -> &'static [(u8, u8)] {
+    pub fn range_effectiveness(&self) -> &'static [u8] {
         match *self {
-            Armor => &[(1, 3)],
-            Artillery => &[(1, 3), (3, 2), (5, 1)],
-            Infantry => &[(1, 3), (2, 2), (3, 1)],
+            Armor => &[3, 3, 3],
+            Artillery => &[3, 3, 2, 2, 1, 1],
+            Infantry => &[3, 2, 1],
         }
     }
 
@@ -168,6 +188,15 @@ impl UnitType {
             Armor => 3,
             Artillery => 2,
             Infantry => 4,
+        }
+    }
+
+    pub fn takes_causality(&self, result: Dice) -> bool {
+        match result {
+            Dice::Armor if self.is_armor() => true,
+            Dice::Infantry if self.is_infantry() => true,
+            Dice::Grenade => true,
+            _ => false,
         }
     }
 }

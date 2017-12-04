@@ -2,7 +2,7 @@ use std::fmt;
 
 use ggez::graphics::Color;
 
-#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum Faction {
     Allies,
     Axis,

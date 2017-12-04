@@ -1,5 +1,9 @@
+use std::collections::HashSet;
+
 use self::Terrain::*;
 use hsl::Hsl;
+use feature::{Feature, Features};
+use unit::UnitType;
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub enum Terrain {
@@ -10,10 +14,10 @@ pub enum Terrain {
 }
 
 impl Terrain {
-    pub fn is_walkable(&self) -> bool {
+    pub fn blocks_movement(&self, features: Features) -> bool {
         match *self {
-            Forest | Plain | Town => true,
-            River => false,
+            Forest | Plain | Town => false,
+            River => !features.contains(&Feature::Bridge),
         }
     }
 
@@ -29,6 +33,41 @@ impl Terrain {
             }
             River => Hsl::new(203., 0.48, 0.44),
             Town => Hsl::new(198., 0.21, 0.39),
+        }
+    }
+
+    pub fn blocks_sight(&self, _features: Features) -> bool {
+        match *self {
+            Plain | River => false,
+            Forest | Town => true
+        }
+    }
+
+    pub fn stops_movement(&self) -> bool {
+        match *self {
+            Plain | River => false,
+            Forest | Town => true,
+        }
+    }
+
+    pub fn protection(&self, against: UnitType) -> u8 {
+        macro_rules! unit_match {
+            ($($unit:ident => $amount:expr,)*) => {{
+                use unit::UnitType::*;
+                match against {
+                    $(
+                        $unit => $amount,
+                    )*
+                    Artillery => 0,
+                }
+            }}
+        }
+
+        match *self {
+            Plain => 0,
+            Town => unit_match!(Infantry => 1, Armor => 2,),
+            Forest => unit_match!(Infantry => 1, Armor => 2,),
+            River => 0,
         }
     }
 }
