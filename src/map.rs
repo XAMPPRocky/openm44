@@ -12,14 +12,14 @@ use hex::Hex;
 
 pub type Grid = HashMap<(i8, i8), Hex>;
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize)]
 pub struct MapData {
     pub name: String,
     pub biome: Biome,
     map: Vec<Hex>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Map {
     pub name: String,
     pub biome: Biome,
@@ -176,4 +176,10 @@ impl DerefMut for Map {
 #[derive(Clone, Copy, Debug, Deserialize)]
 pub enum Biome {
     Plains
+}
+
+impl Default for Biome {
+    fn default() -> Self {
+        Biome::Plains
+    }
 }

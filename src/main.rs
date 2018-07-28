@@ -14,7 +14,7 @@ fn main() {
 }
 
 fn run() -> GameResult<()> {
-    let mut c = conf::Conf {
+    let c = conf::Conf {
         window_width: WIDTH,
         window_height: HEIGHT,
         vsync: true,

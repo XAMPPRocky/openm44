@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use std::f32;
 
 use ggez::graphics::{self, Point, Color, DrawMode, Text};
@@ -13,11 +12,13 @@ use unit::{FONT, UnitType};
 
 pub const SIZE: u32 = 50;
 pub const OFFSET: f32 = SIZE as f32;
+pub const X_OFFSET: f32 = 43.;
+pub type Coordinate = (i8, i8);
 
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct Hex {
     pub features: Features,
-    pub position: (i8, i8),
+    pub position: Coordinate,
     #[serde(default)]
     pub selected: bool,
     #[serde(default)]
@@ -31,7 +32,7 @@ pub struct Hex {
 }
 
 impl Hex {
-    pub fn new(position: (i8, i8)) -> Self {
+    pub fn new(position: Coordinate) -> Self {
         Hex {
             position: position,
             ..Self::default()
@@ -68,7 +69,7 @@ impl Hex {
         u8::min(terrain_reduction, feature_reduction)
     }
 
-    pub fn neighbours(&self) -> [(i8, i8); 6] {
+    pub fn neighbours(&self) -> [Coordinate; 6] {
         let q = self.position.0;
         let r = self.position.1;
 
@@ -87,7 +88,7 @@ impl Hex {
         let r = self.position.1 as f32;
 
         (
-            (OFFSET * 3f32.sqrt() * (q + r/2.)) + OFFSET,
+            (OFFSET * 3f32.sqrt() * (q + r/2.)) + X_OFFSET,
             (OFFSET * 3./2. * r) + OFFSET,
         )
     }
