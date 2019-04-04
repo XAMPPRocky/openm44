@@ -1,4 +1,4 @@
-use rand::{Rand, Rng};
+use rand::{distributions::{Distribution, Standard}, Rng};
 
 use self::Dice::*;
 
@@ -11,8 +11,9 @@ pub enum Dice {
     Star,
 }
 
-impl Rand for Dice {
-    fn rand<R: Rng>(rng: &mut R) -> Self {
+impl Distribution<Dice> for Standard {
+
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Dice {
         let result: u32 = rng.gen_range(1, 6);
 
         match result {

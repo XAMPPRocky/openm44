@@ -1,13 +1,13 @@
 extern crate openm44;
 extern crate ggez;
 
-use openm44::game::Game;
-use openm44::hex::SIZE;
+use openm44::{
+    HEIGHT,
+    WIDTH,
+    game::Game,
+};
 
 use ggez::{conf, Context, event, GameResult};
-
-const HEIGHT: u32 = SIZE * 14;
-const WIDTH: u32 = (SIZE * 24);
 
 fn main() {
     run().unwrap();
@@ -15,9 +15,11 @@ fn main() {
 
 fn run() -> GameResult<()> {
     let c = conf::Conf {
-        window_width: WIDTH,
-        window_height: HEIGHT,
-        vsync: true,
+        window_mode: conf::WindowMode {
+            width: WIDTH - 1,
+            height: HEIGHT - 1,
+            ..conf::WindowMode::default()
+        },
         ..conf::Conf::new()
     };
 

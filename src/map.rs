@@ -1,11 +1,9 @@
 use std::collections::{HashMap, HashSet};
-use std::time::Duration;
 use std::ops::{Deref, DerefMut};
 
 use ggez::GameResult;
 use ggez::Context;
 use ggez::graphics::{self, Color};
-use ggez::timer;
 
 use unit::Unit;
 use hex::Hex;
@@ -131,30 +129,47 @@ impl Map {
     pub fn reset_view(&mut self) {
         for hex in self.map.values_mut()
             .filter(|h| (h.selected || h.distance.is_some()) || h.dice.is_some())
-            {
-                hex.selected = false;
-                hex.distance = None;
-                hex.dice = None;
-                let mut destroy = if let Some(unit) = hex.unit {
-                     unit.destroy
-                } else {
-                    false
-                };
+        {
+            hex.selected = false;
+            hex.distance = None;
+            hex.dice = None;
+            let mut destroy = if let Some(unit) = hex.unit {
+                    unit.destroy
+            } else {
+                false
+            };
 
-                if destroy {
-                    hex.remove_unit();
-                }
+            if destroy {
+                hex.remove_unit();
             }
+        }
     }
 
     pub fn draw(&self, ctx: &mut Context) -> GameResult<()> {
         graphics::set_background_color(ctx, Color::from((0, 0, 0)));
 
-        for (_, hex) in &self.map {
+        for hex in self.map.values() {
             hex.draw(ctx)?;
         }
 
-        timer::sleep(Duration::new(0, 0));
+        /*
+        for hex in self.map.values() {
+            hex.draw_borders(ctx)?;
+        }
+
+        for hex in self.map.values() {
+            hex.draw_features(ctx)?;
+        }
+
+        for hex in self.map.values().filter(|h| h.has_unit()) {
+            hex.draw_units(ctx)?;
+        }
+
+        for hex in self.map.values() {
+            hex.draw_overlay(ctx)?;
+        }
+        */
+
         Ok(())
     }
 }

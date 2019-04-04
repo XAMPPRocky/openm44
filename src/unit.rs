@@ -2,7 +2,7 @@ use std::fmt;
 use std::ops::Deref;
 
 use serde::de::{self, Deserialize, Deserializer, Visitor, MapAccess};
-use ggez::graphics::{self, DrawMode, Font, Point, Rect, Text};
+use ggez::graphics::{self, DrawMode, Font, Point2 as Point, Rect, Text};
 use ggez::Context;
 use ggez::GameResult;
 
@@ -29,6 +29,7 @@ pub struct Unit {
 
 impl Unit {
     pub fn draw(&self, (x, y): (f32, f32), ctx: &mut Context) -> GameResult<()> {
+        let (x, y) = (x - (BOX_WIDTH / 2.), y - (BOX_HEIGHT / 2.));
         let unit_box = Rect::new(x, y, BOX_WIDTH, BOX_HEIGHT);
 
         graphics::set_color(ctx, self.faction.colour())?;
@@ -43,8 +44,17 @@ impl Unit {
         };
 
         graphics::set_color(ctx, invert)?;
+
         let mut text = Text::new(ctx, &self.to_string(), &FONT)?;
         text.set_filter(graphics::FilterMode::Nearest);
+
+        let x = if (text.width() as f32) < BOX_WIDTH {
+            let difference = BOX_WIDTH - text.width() as f32;
+            x + (difference / 2.)
+        } else {
+            x
+        };
+
         graphics::draw(ctx, &text, Point::new(x, y), 0.)?;
 
         Ok(())

@@ -11,6 +11,8 @@ pub struct Hsl {
 }
 
 impl Hsl {
+    pub const WHITE: Hsl = Hsl { hue: 1., saturation: 1., lightness: 1. };
+
     pub fn new(hue: f32, saturation: f32, lightness: f32) -> Self {
         assert!(hue >= 0. && saturation <= 360.);
         assert!(saturation >= 0. && saturation <= 1.);
@@ -68,20 +70,23 @@ impl Hsl {
         }
     }
 
-    pub fn darken(&mut self, by: f32) {
+    pub fn darken(mut self, by: f32) -> Self {
         self.lightness -= by;
+        self
     }
 
-    pub fn brighten(&mut self, by: f32) {
+    pub fn brighten(mut self, by: f32) -> Self {
         self.lightness += by;
+        self
     }
 
     pub fn is_tinted(&self) -> bool {
         self.lightness >= 0.50 && self.lightness <= 0.51
     }
 
-    pub fn reset_tint(&mut self) {
+    pub fn reset_tint(mut self) -> Self {
         self.lightness = 0.5;
+        self
     }
 }
 

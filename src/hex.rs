@@ -1,6 +1,6 @@
 use std::f32;
 
-use ggez::graphics::{self, Point, Color, DrawMode, Text};
+use ggez::graphics::{self, Point2 as Point, Color, DrawMode, Text};
 use ggez::Context;
 use ggez::GameResult;
 
@@ -12,7 +12,7 @@ use unit::{FONT, UnitType};
 
 pub const SIZE: u32 = 50;
 pub const OFFSET: f32 = SIZE as f32;
-pub const X_OFFSET: f32 = 43.;
+pub const X_OFFSET: f32 = OFFSET;
 pub type Coordinate = (i8, i8);
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -42,11 +42,19 @@ impl Hex {
     pub fn remove_unit(&mut self) -> Option<Unit> {
         let wrapped = self.unit.take();
 
-        if let Some(unit) = wrapped {
+        if wrapped.is_some() {
             self.features.remove(&Feature::Sandbags);
         }
 
         wrapped
+    }
+
+    pub fn has_unit(&self) -> bool {
+        self.unit.is_some()
+    }
+
+    pub fn needs_overlay(&self) -> bool {
+        self.distance.is_some() || self.dice.is_some() || self.selected
     }
 
     pub fn blocks_sight(&self) -> bool {
@@ -89,12 +97,18 @@ impl Hex {
 
         (
             (OFFSET * 3f32.sqrt() * (q + r/2.)) + X_OFFSET,
-            (OFFSET * 3./2. * r) + OFFSET,
+            (OFFSET * 3./2. * r)                + OFFSET,
         )
     }
 
+    pub fn offset_pixel_position(&self) -> (f32, f32) {
+        let (x, y) = self.pixel_position();
+
+        (x - (OFFSET / 2.), y - (OFFSET / 2.))
+    }
+
     fn corners(&self) -> [Point; 6] {
-        let mut corners = [Point::zero(); 6];
+        let mut corners = [Point::origin(); 6];
         let north = self.arc(Direction::North);
         let south = self.arc(Direction::South);
 
@@ -106,7 +120,7 @@ impl Hex {
     }
 
     pub fn arc(&self, direction: Direction) -> ([Point; 3]) {
-        let mut arc = [Point::zero(); 3];
+        let mut arc = [Point::origin(); 3];
         let (center_x, center_y) = self.pixel_position();
 
         for (i, val) in direction.degrees().into_iter().enumerate() {
@@ -126,17 +140,34 @@ impl Hex {
         graphics::set_color(ctx, self.terrain.colour().into())?;
         graphics::polygon(ctx, DrawMode::Fill, &points)?;
 
-        self.features.draw(self, ctx)?;
+        let (x, y) = self.position;
+        graphics::set_color(ctx, Hsl::WHITE.into()).unwrap();
+        let mut text = Text::new(ctx, &format!("({}, {})", x, y), &FONT).unwrap();
+        text.set_filter(graphics::FilterMode::Nearest);
+        let (x, y) = self.offset_pixel_position();
+        graphics::draw(ctx, &text, graphics::Point2::new(x as f32, y as f32), 0.).unwrap();
 
-        if self.selected {
-            graphics::set_color(ctx, Color::from((252, 246, 177)))?;
-            graphics::polygon(ctx, DrawMode::Line, &points)?;
-        }
+        Ok(())
+    }
 
-        if let Some(unit) = self.unit.clone() {
+    pub fn draw_features(&self, ctx: &mut Context) -> GameResult<()> {
+        self.features.draw(self, ctx)
+    }
+
+    pub fn draw_units(&self, ctx: &mut Context) -> GameResult<()> {
+        if let Some(ref unit) = self.unit {
             unit.draw(self.pixel_position(), ctx)?;
         }
 
+        Ok(())
+    }
+
+    pub fn draw_borders(&self, ctx: &mut Context) -> GameResult<()> {
+        graphics::set_color(ctx, self.terrain.colour().darken(0.1).into())?;
+        graphics::polygon(ctx, DrawMode::Line(1.), &self.corners())
+    }
+
+    pub fn draw_overlay(&self, ctx: &mut Context) -> GameResult<()> {
         if let Some(distance) = self.distance {
             let (x, y) = self.pixel_position();
 
@@ -144,6 +175,11 @@ impl Hex {
             let mut text = Text::new(ctx, &distance.to_string(), &FONT)?;
             text.set_filter(graphics::FilterMode::Nearest);
             graphics::draw(ctx, &text, Point::new(x, y), 0.)?;
+        }
+
+        if self.selected {
+            graphics::set_color(ctx, Color::from((252, 246, 177)))?;
+            graphics::polygon(ctx, DrawMode::Line(1.), &self.corners())?;
         }
 
         if let Some(dice) = self.dice {
@@ -163,7 +199,6 @@ impl Hex {
             let mut text = Text::new(ctx, &display, &FONT)?;
             text.set_filter(graphics::FilterMode::Nearest);
             graphics::draw(ctx, &text, Point::new(x, y), 0.)?;
-
         }
 
         Ok(())

@@ -4,7 +4,7 @@ use ggez::{Context, GameResult};
 use ggez::graphics::{self, DrawMode, Rect};
 use serde::{Deserialize, Deserializer};
 
-use hex::{Hex, Direction, OFFSET};
+use hex::{Hex, Direction, OFFSET, X_OFFSET};
 use self::Feature::*;
 use terrain::Terrain;
 use unit::UnitType;
@@ -72,7 +72,6 @@ pub enum Feature {
 
 impl Feature {
     pub fn draw(&self, hex: &Hex, ctx: &mut Context) -> GameResult<()> {
-        let original = graphics::get_line_width(ctx);
         match *self {
             Sandbags => {
                 let unit = hex.unit.unwrap();
@@ -81,22 +80,20 @@ impl Feature {
                     point.y -= 5.;
                 }
                 graphics::set_color(ctx, unit.faction.colour())?;
-                graphics::set_line_width(ctx, 5.);
-                graphics::line(ctx, &arc)?;
+                graphics::line(ctx, &arc, 5.)?;
             }
 
             Bridge => {
                 graphics::set_color(ctx, Terrain::Town.colour().into())?;
                 let (x, y) = hex.pixel_position();
-                let rect = Rect::new(x, y, OFFSET * 2., OFFSET / 1.5);
+                let (width, height) = (X_OFFSET * 2., OFFSET / 1.5);
+                let rect = Rect::new(x - width / 2., y - height / 2., width, height);
 
                 graphics::rectangle(ctx, DrawMode::Fill, rect)?;
             }
 
             _ => {}
         }
-
-        graphics::set_line_width(ctx, original);
 
         Ok(())
     }

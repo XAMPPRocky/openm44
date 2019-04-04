@@ -3,20 +3,10 @@ use serde::de::{self, Deserialize, Deserializer, Unexpected};
 
 use unit::UnitType;
 
-#[derive(Clone, Debug, Deserialize)]
-#[serde(untagged)]
-pub enum Card {
-    Normal {
-        section: Section,
-        units: Units,
-    },
-
-    Recon(Section),
-}
-
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct Deck {
     name: String,
+    #[serde(deserialize_with = "deserialise_cards")]
     cards: Vec<Card>,
 }
 
@@ -27,6 +17,32 @@ impl Deck {
     }
 }
 
+#[derive(Clone, Debug, Deserialize)]
+struct CardBuilder {
+    section: Section,
+    units: Units,
+    amount: u64,
+}
+
+#[derive(Clone, Debug)]
+pub enum Card {
+    Normal {
+        section: Section,
+        units: Units,
+    },
+
+    Recon(Section),
+}
+
+impl Card {
+    fn new(builder: &CardBuilder) -> Self {
+        Card::Normal {
+            section: builder.section,
+            units: builder.units,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Deserialize)]
 pub enum Section {
     Left,
@@ -34,7 +50,7 @@ pub enum Section {
     Centre,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Copy, Debug, Deserialize)]
 #[serde(untagged)]
 pub enum Units {
     #[serde(deserialize_with = "literal_all")]
@@ -52,4 +68,19 @@ fn literal_all<'de, D>(deserializer: D) -> Result<(), D::Error>
     } else {
         Err(de::Error::invalid_value(Unexpected::Str(&s), &"the string 'All'"))
     }
+}
+
+fn deserialise_cards<'de, D>(deserializer: D) -> Result<Vec<Card>, D::Error>
+    where D: Deserializer<'de>
+{
+    let card_builders = Vec::<CardBuilder>::deserialize(deserializer)?;
+    let mut cards = Vec::with_capacity(60);
+
+    for card_builder in card_builders {
+        for _ in 0..card_builder.amount {
+            cards.push(Card::new(&card_builder));
+        }
+    }
+
+    Ok(cards)
 }

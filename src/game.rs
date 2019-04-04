@@ -2,20 +2,30 @@ use std::fs::File;
 use std::time::Duration;
 
 use ggez::event::{self, MouseButton};
-use ggez::graphics;
+use ggez::graphics::{self, Text};
 use ggez::{Context, GameResult};
 use merge::merge_keys_serde as merge_keys;
 use rand::{self, Rng};
 use yaml;
 
-use map::Map;
-use hex::{Coordinate, OFFSET, X_OFFSET};
-use card::{Card, Deck};
-use turn::TurnPhase;
+use crate::{
+    card::{Card, Deck},
+    cube::Cube,
+    hex::{Coordinate, OFFSET, X_OFFSET},
+    map::Map,
+    turn::TurnPhase,
+    unit::FONT,
+    layout::Layout,
+    point::Point,
+};
+
+
+use super::{WIDTH, HEIGHT};
 
 #[derive(Default)]
 pub struct Game {
     map: Map,
+    layout: Layout,
     src_position: Option<Coordinate>,
     allied_hand: Vec<Card>,
     axis_hand: Vec<Card>,
@@ -29,7 +39,7 @@ impl Game {
     pub fn new(_ctx: &mut Context) -> GameResult<Self> {
         Ok(Game {
             map: {
-                let f = File::open("./maps/plains/pegasus_bridge.yml")?;
+                let f = File::open("./resources/maps/plains/pegasus_bridge.yml")?;
                 let value = merge_keys(yaml::from_reader(f).unwrap()).unwrap();
 
                 Map::from_data(yaml::from_value(value).unwrap())
@@ -73,7 +83,6 @@ impl Game {
                                 unit.destroy = true;
                             }
                         }
-
                     }
                 } else {
                     dest.unit = src.remove_unit();
@@ -127,11 +136,12 @@ impl Game {
 }
 
 impl event::EventHandler for Game {
-    fn update(&mut self, _ctx: &mut Context, _dt: Duration) -> GameResult<()> {
+    fn update(&mut self, _ctx: &mut Context) -> GameResult<()> {
         Ok(())
     }
 
     fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
+        graphics::set_resolution(ctx, WIDTH, HEIGHT);
         graphics::clear(ctx);
         self.map.draw(ctx)?;
         graphics::present(ctx);
@@ -139,16 +149,42 @@ impl event::EventHandler for Game {
         Ok(())
     }
 
+    fn mouse_motion_event(&mut self,
+                          ctx: &mut Context,
+                          _state: event::MouseState,
+                          x: i32,
+                          y: i32,
+                          _xrel: i32,
+                          _yrel: i32)
+    {
+        self.map.reset_view();
+        let mut has_unit = false;
+        let position = self.layout.pixel_to_hex(Point::new(x as f64, y as f64));
+        let position = (position.q() as i8, position.r() as i8);
+
+
+        graphics::set_color(ctx, ::hsl::Hsl::WHITE.into()).unwrap();
+        let mut text = Text::new(ctx, &format!("({}, {})", x, y), &FONT).unwrap();
+        text.set_filter(graphics::FilterMode::Nearest);
+        graphics::draw(ctx, &text, graphics::Point2::new(x as f32, y as f32), 0.).unwrap();
+
+        if let Some(hex) = self.map.get_mut(&position) {
+            hex.selected = true;
+            if hex.selected {
+                self.src_position = Some(hex.position);
+                has_unit = hex.unit.is_some();
+            }
+        }
+
+    }
+
     fn mouse_button_down_event(&mut self,
+                               _ctx: &mut Context,
                                button: MouseButton,
                                x: i32,
                                y: i32) {
-        let x = x as f32;
-        let y = y as f32;
-        let q = (x * 3f32.sqrt() / 3. - y / 3.) / OFFSET;
-        let r = y * 2. / 3. / OFFSET;
 
-        let position = (q as i8, r as i8);
+        let position = pixel_to_hex(x as f32, y as f32);
         println!("{:?}", position);
 
         match button {
@@ -157,4 +193,40 @@ impl event::EventHandler for Game {
             _ => {}
         }
     }
+}
+
+fn pixel_to_hex(x: f32, y: f32) -> (i8, i8) {
+    let x = x - X_OFFSET;
+    let y = y - OFFSET;
+    println!("{:?}", (x, y));
+    let q = (3f32.sqrt()/3. * x  - 1./3. * y) / OFFSET;
+    let r = (                      2./3. * y) / OFFSET;
+    println!("{:?}", (q, r));
+    unimplemented!()
+    // Cube::new(q,  -q-r, r).round().to_oddr()
+
+    /*
+    let q = (f32::sqrt(3.)/3. * x  -  1./3. * y) / OFFSET;
+    let r = (                        2./3. * y) / OFFSET;
+    let mut rx = f32::round(q);
+    let mut ry = f32::round(-q-r);
+    let mut rz = f32::round(r);
+
+    let x_diff = f32::abs(rx - q);
+    let y_diff = f32::abs(ry - (-q-r));
+    let z_diff = f32::abs(rz - r);
+
+    if x_diff > y_diff && x_diff > z_diff {
+        rx = -ry-rz;
+    } else if y_diff > z_diff {
+        ry = -rx-rz;
+    } else {
+        rz = -rx-ry;
+    }
+
+    let col = rx + (rz - (rz as i32 & 1) as f32) / 2.;
+    let row = rz;
+
+    (col as i8, row as i8)
+    */
 }
