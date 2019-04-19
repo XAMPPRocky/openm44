@@ -1,11 +1,20 @@
-/*
-use crate::cube::Cube;
+use crate::hex2::Hex;
 
-pub struct Offset(i8, i8);
+const _EVEN: i8 = 1;
+const ODD: i8 = -1;
+pub const OFFSET: i8 = ODD;
 
-impl From<Cube> for Offset {
-    fn from(cube: Cube) -> Self {
-        let col = 
+#[derive(Debug, Clone, Copy)]
+pub struct OffsetCoord {
+    pub col: i8,
+    pub row: i8,
+}
+
+impl From<Hex> for OffsetCoord {
+    fn from(hex: Hex) -> Self {
+        let col = hex.q() + (hex.r() + OFFSET * (hex.r() & 1) / 2);
+        let row = hex.r();
+
+        Self { col, row }
     }
 }
-*/

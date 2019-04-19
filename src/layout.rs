@@ -1,4 +1,9 @@
-use crate::{hex2::{FractionalHex, Hex}, orientation::Orientation, point::Point};
+use ggez::{GameResult, Context};
+use ggez::graphics::{self, Point2 as Point, Color, DrawMode, Text};
+
+use crate::{hex2::{FractionalHex, Hex}, hsl::Hsl, orientation::Orientation};
+
+const PLAIN: Hsl = Hsl { hue: 79., saturation: 0.45, lightness: 0.5 };
 
 pub struct Layout {
     pub orientation: &'static Orientation,
@@ -13,10 +18,10 @@ impl Layout {
 
     pub fn hex_to_pixel(&self, hex: Hex) -> Point {
         let matrix = self.orientation.matrix;
-        let (q, r) = (hex.q() as f64, hex.r() as f64);
+        let (q, r) = (hex.q() as f32, hex.r() as f32);
 
-        let x = (matrix[0] * q + matrix[1] * r) * (self.size.x as f64);
-        let y = (matrix[2] * q + matrix[3] * r) * (self.size.y as f64);
+        let x = (matrix[0] * q + matrix[1] * r) * (self.size.x as f32);
+        let y = (matrix[2] * q + matrix[3] * r) * (self.size.y as f32);
 
         Point::new(x + self.origin.x, y + self.origin.y)
     }
@@ -35,10 +40,10 @@ impl Layout {
     }
 
     fn hex_corner_offset(&self, corner: i8) -> Point {
-        let angle = 2.0 * std::f64::consts::PI *
-            (self.orientation.start_angle + corner as f64) / 6.0;
+        let angle = 2.0 * std::f32::consts::PI *
+            (self.orientation.start_angle + corner as f32) / 6.0;
 
-        Point::new(self.size.x * f64::cos(angle), self.size.y * f64::sin(angle))
+        Point::new(self.size.x * angle.cos(), self.size.y * angle.sin())
     }
 
     pub fn polygon_corners(&self, hex: Hex) -> [Point; 6] {
@@ -54,14 +59,24 @@ impl Layout {
 
         points
     }
+
+    pub fn draw_hex(&mut self, ctx: &mut Context, hex: Hex) -> GameResult<()> {
+        let corners = self.polygon_corners(hex);
+
+        graphics::set_color(ctx, PLAIN.into())?;
+        graphics::polygon(ctx, DrawMode::Fill, &corners)?;
+        graphics::set_color(ctx, Color::new(0., 0., 0., 1.))?;
+        graphics::polygon(ctx, DrawMode::Line(1.), &corners)?;
+        Ok(())
+    }
 }
 
 impl Default for Layout {
     fn default() -> Self {
         Self {
             orientation: &*crate::orientation::POINTY,
-            size: Point::new(25.0, 25.0),
-            origin: Point::new(0.0, 0.0)
+            size: Point::new(50.0, 50.0),
+            origin: Point::new(50.0, 50.0)
         }
     }
 }

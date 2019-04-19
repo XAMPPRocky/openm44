@@ -18,10 +18,11 @@ pub mod hsl;
 pub mod layout;
 pub mod map;
 pub mod orientation;
-pub mod point;
+pub mod offset;
 pub mod terrain;
 pub mod turn;
 pub mod unit;
+pub mod map2;
 
 use hex::SIZE;
 
