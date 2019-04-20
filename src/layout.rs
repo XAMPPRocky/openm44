@@ -1,9 +1,17 @@
 use ggez::{GameResult, Context};
-use ggez::graphics::{self, Point2 as Point, Color, DrawMode, Text};
+use ggez::graphics::{self, Font, Point2 as Point, Color, DrawMode, Text};
 
-use crate::{hex2::{FractionalHex, Hex}, hsl::Hsl, orientation::Orientation};
+use crate::{hex::{FractionalHex, Hex}, hsl::Hsl, orientation::Orientation};
+use crate::tile::Tile;
 
 const PLAIN: Hsl = Hsl { hue: 79., saturation: 0.45, lightness: 0.5 };
+pub const HEIGHT: u32 = SIZE * 14;
+pub const WIDTH: u32 = (SIZE * 24);
+const SIZE: u32 = 50;
+
+lazy_static! {
+    pub static ref FONT: Font = Font::default_font().unwrap();
+}
 
 pub struct Layout {
     pub orientation: &'static Orientation,
@@ -60,13 +68,38 @@ impl Layout {
         points
     }
 
-    pub fn draw_hex(&mut self, ctx: &mut Context, hex: Hex) -> GameResult<()> {
+    pub fn draw_hex(&mut self, ctx: &mut Context, hex: Hex, tile: &Tile) -> GameResult<()> {
         let corners = self.polygon_corners(hex);
 
         graphics::set_color(ctx, PLAIN.into())?;
         graphics::polygon(ctx, DrawMode::Fill, &corners)?;
         graphics::set_color(ctx, Color::new(0., 0., 0., 1.))?;
         graphics::polygon(ctx, DrawMode::Line(1.), &corners)?;
+
+        if let Some(text) = &tile.text {
+            graphics::draw(ctx, text, self.hex_to_pixel(hex), 0.)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn draw_selection(&self, ctx: &mut Context, hex: Hex, tile: &Tile) -> GameResult<()> {
+        let corners = self.polygon_corners(hex);
+
+        graphics::set_color(ctx, Color::new(204., 90., 113., 1.))?;
+        graphics::polygon(ctx, DrawMode::Line(1.), &corners)?;
+
+        Ok(())
+    }
+
+    pub fn draw_distance(&self, ctx: &mut Context, source: Hex, target: Hex, tile: &mut Tile) -> GameResult<()> {
+        let distance = source.distance(target);
+
+        let mut text = Text::new(ctx, &distance.to_string(), &FONT)?;
+        text.set_filter(graphics::FilterMode::Nearest);
+
+        tile.text.replace(text);
+
         Ok(())
     }
 }
@@ -75,8 +108,8 @@ impl Default for Layout {
     fn default() -> Self {
         Self {
             orientation: &*crate::orientation::POINTY,
-            size: Point::new(50.0, 50.0),
-            origin: Point::new(50.0, 50.0)
+            size: Point::new(SIZE as f32, SIZE as f32),
+            origin: Point::new(SIZE as f32, SIZE as f32)
         }
     }
 }

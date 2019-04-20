@@ -1,226 +1,169 @@
-use std::f32;
+use std::ops::{Add, Mul, Sub};
 
-use ggez::graphics::{self, Point2 as Point, Color, DrawMode, Text};
-use ggez::Context;
-use ggez::GameResult;
+const HEX_DIRECTIONS: [Hex; 6] = [
+    Hex::new_unchecked(1, 0, -1), Hex::new_unchecked(1, -1, 0), Hex::new_unchecked(0, -1, 1),
+    Hex::new_unchecked(-1, 0, 1), Hex::new_unchecked(-1, 1, 0), Hex::new_unchecked(0, 1, -1),
+];
 
-use terrain::Terrain;
-use unit::Unit;
-use feature::{Feature, Features};
-use hsl::Hsl;
-use unit::{FONT, UnitType};
-
-pub const SIZE: u32 = 50;
-pub const OFFSET: f32 = SIZE as f32;
-pub const X_OFFSET: f32 = OFFSET;
-pub type Coordinate = (i8, i8);
-
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq)]
 pub struct Hex {
-    pub features: Features,
-    pub position: Coordinate,
-    #[serde(default)]
-    pub selected: bool,
-    #[serde(default)]
-    pub terrain: Terrain,
-    pub unit: Option<Unit>,
-    pub victory_point: Option<VictoryPoint>,
-    #[serde(default)]
-    pub distance: Option<u8>,
-    #[serde(default)]
-    pub dice: Option<u8>,
+    coordinates: [i8; 3],
 }
 
 impl Hex {
-    pub fn new(position: Coordinate) -> Self {
-        Hex {
-            position: position,
-            ..Self::default()
-        }
+    pub fn new(q: i8, r: i8, s: i8) -> Self {
+        assert!(q + r + s == 0, "Invalid hex position: {} + {} + {} != 0", q, r, s);
+
+        Hex { coordinates: [q, r, s] }
     }
 
-    pub fn remove_unit(&mut self) -> Option<Unit> {
-        let wrapped = self.unit.take();
-
-        if wrapped.is_some() {
-            self.features.remove(&Feature::Sandbags);
-        }
-
-        wrapped
+    /// This exists solely because `assert_eq!` is not allowed in const
+    /// expressions (rustc 1.33.0).
+    const fn new_unchecked(q: i8, r: i8, s: i8) -> Self {
+        Hex { coordinates: [q, r, s] }
     }
 
-    pub fn has_unit(&self) -> bool {
-        self.unit.is_some()
+    pub fn new_coord(q: i8, r: i8) -> Self {
+        Self::new(q, r, -q-r)
     }
 
-    pub fn needs_overlay(&self) -> bool {
-        self.distance.is_some() || self.dice.is_some() || self.selected
+    pub fn q(&self) -> i8 {
+        self.coordinates[0]
     }
 
-    pub fn blocks_sight(&self) -> bool {
-        self.terrain.blocks_sight(self.features.clone()) || self.unit.is_some()
+    pub fn r(&self) -> i8 {
+        self.coordinates[1]
     }
 
-    pub fn blocks_movement(&self) -> bool {
-        self.terrain.blocks_movement(self.features.clone()) || self.unit.is_some()
+    pub fn s(&self) -> i8 {
+        self.coordinates[2]
     }
 
-    pub fn stops_movement(&self, unit_type: Option<UnitType>) -> bool {
-        self.terrain.stops_movement() ||
-            (unit_type.is_some() && self.features.stops_movement(unit_type.unwrap()))
+    fn len(self) -> usize {
+        (self.coordinates.iter().fold(0, |acc, i| acc + i.abs()) / 2) as usize
     }
 
-    pub fn reduce_dice(&self, unit: UnitType, max: u8) -> u8 {
-        let terrain_reduction = max.saturating_sub(self.terrain.protection(unit));
-        let feature_reduction = max.saturating_sub(self.features.protection());
-
-        u8::min(terrain_reduction, feature_reduction)
+    pub fn distance(self, rhs: Self) -> usize {
+        (self - rhs).len()
     }
 
-    pub fn neighbours(&self) -> [Coordinate; 6] {
-        let q = self.position.0;
-        let r = self.position.1;
+    pub fn direction(direction: usize) -> Self {
+        assert!(direction < 6);
 
-        [
-            (q, r - 1),
-            (q + 1, r - 1),
-            (q + 1, r),
-            (q, r + 1),
-            (q - 1, r + 1),
-            (q - 1, r),
-        ]
+        HEX_DIRECTIONS[direction]
     }
 
-    pub fn pixel_position(&self) -> (f32, f32) {
-        let q = self.position.0 as f32;
-        let r = self.position.1 as f32;
-
-        (
-            (OFFSET * 3f32.sqrt() * (q + r/2.)) + X_OFFSET,
-            (OFFSET * 3./2. * r)                + OFFSET,
-        )
+    pub fn neighbour(self, direction: usize) -> Self {
+        self + Self::direction(direction)
     }
 
-    pub fn offset_pixel_position(&self) -> (f32, f32) {
-        let (x, y) = self.pixel_position();
-
-        (x - (OFFSET / 2.), y - (OFFSET / 2.))
-    }
-
-    fn corners(&self) -> [Point; 6] {
-        let mut corners = [Point::origin(); 6];
-        let north = self.arc(Direction::North);
-        let south = self.arc(Direction::South);
-
-        for (i, val) in north.into_iter().chain(south.into_iter()).enumerate() {
-            corners[i] = *val;
+    pub fn lerp(self, rhs: Self, t: f32) -> FractionalHex {
+        fn f32_lerp(a: f32, b: f32, t: f32) -> f32 {
+            a * (1.0-t) + b * t
         }
 
-        corners
+        FractionalHex::new([ f32_lerp(self.q() as f32, rhs.q() as f32, t),
+                             f32_lerp(self.r() as f32, rhs.r() as f32, t),
+                             f32_lerp(self.s() as f32, rhs.s() as f32, t)])
     }
 
-    pub fn arc(&self, direction: Direction) -> ([Point; 3]) {
-        let mut arc = [Point::origin(); 3];
-        let (center_x, center_y) = self.pixel_position();
+    pub fn linedraw(self, rhs: Self) -> Vec<Hex> {
+        let distance = self.distance(rhs);
+        let step = 1.0 / usize::max(distance, 1) as f32;
 
-        for (i, val) in direction.degrees().into_iter().enumerate() {
-            let angle = val.to_radians();
-            let x = center_x + OFFSET * f32::cos(angle);
-            let y = center_y + OFFSET * f32::sin(angle);
-
-            arc[i] = Point::new(x, y);
-        }
-
-        arc
-    }
-
-    pub fn draw(&self, ctx: &mut Context) -> GameResult<()> {
-        let points = self.corners();
-
-        graphics::set_color(ctx, self.terrain.colour().into())?;
-        graphics::polygon(ctx, DrawMode::Fill, &points)?;
-
-        let (x, y) = self.position;
-        graphics::set_color(ctx, Hsl::WHITE.into()).unwrap();
-        let mut text = Text::new(ctx, &format!("({}, {})", x, y), &FONT).unwrap();
-        text.set_filter(graphics::FilterMode::Nearest);
-        let (x, y) = self.offset_pixel_position();
-        graphics::draw(ctx, &text, graphics::Point2::new(x as f32, y as f32), 0.).unwrap();
-
-        Ok(())
-    }
-
-    pub fn draw_features(&self, ctx: &mut Context) -> GameResult<()> {
-        self.features.draw(self, ctx)
-    }
-
-    pub fn draw_units(&self, ctx: &mut Context) -> GameResult<()> {
-        if let Some(ref unit) = self.unit {
-            unit.draw(self.pixel_position(), ctx)?;
-        }
-
-        Ok(())
-    }
-
-    pub fn draw_borders(&self, ctx: &mut Context) -> GameResult<()> {
-        graphics::set_color(ctx, self.terrain.colour().darken(0.1).into())?;
-        graphics::polygon(ctx, DrawMode::Line(1.), &self.corners())
-    }
-
-    pub fn draw_overlay(&self, ctx: &mut Context) -> GameResult<()> {
-        if let Some(distance) = self.distance {
-            let (x, y) = self.pixel_position();
-
-            graphics::set_color(ctx, Hsl::new(0., 1., 0.92).into())?;
-            let mut text = Text::new(ctx, &distance.to_string(), &FONT)?;
-            text.set_filter(graphics::FilterMode::Nearest);
-            graphics::draw(ctx, &text, Point::new(x, y), 0.)?;
-        }
-
-        if self.selected {
-            graphics::set_color(ctx, Color::from((252, 246, 177)))?;
-            graphics::polygon(ctx, DrawMode::Line(1.), &self.corners())?;
-        }
-
-        if let Some(dice) = self.dice {
-            let (x, y) = self.pixel_position();
-
-            let display = {
-                let mut x = String::from("X");
-
-                for _ in 1..dice {
-                    x += "X";
-                }
-
-                x
-            };
-
-            graphics::set_color(ctx, Hsl::new(0., 1., 0.92).into())?;
-            let mut text = Text::new(ctx, &display, &FONT)?;
-            text.set_filter(graphics::FilterMode::Nearest);
-            graphics::draw(ctx, &text, Point::new(x, y), 0.)?;
-        }
-
-        Ok(())
+        (0..=distance).map(|i| self.lerp(rhs, step * i as f32).round()).collect()
     }
 }
 
-#[derive(Clone, Copy, Debug, Deserialize)]
-pub enum VictoryPoint {
-    HoldPoint,
+impl From<crate::offset::OffsetCoord> for Hex {
+    fn from(offset: crate::offset::OffsetCoord) -> Self {
+        let q = offset.col - (offset.row + crate::offset::OFFSET * (offset.row & 1) / 2);
+        let r = offset.row;
+        let s = -q - r;
+
+        Self::new(q, r, s)
+    }
 }
 
-#[derive(Clone, Copy, Debug, Deserialize)]
-pub enum Direction {
-    North,
-    South,
+impl Add<Hex> for Hex {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        let q = self.coordinates[0] + rhs.coordinates[0];
+        let r = self.coordinates[1] + rhs.coordinates[1];
+        let s = self.coordinates[2] + rhs.coordinates[2];
+
+        Self::new(q, r, s)
+    }
 }
 
-impl Direction {
-    fn degrees(&self) -> [f32; 3] {
-        match *self {
-            Direction::North => [210., 270., 330.],
-            Direction::South => [30., 90., 150.],
+impl Sub<Hex> for Hex {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        let q = self.coordinates[0] - rhs.coordinates[0];
+        let r = self.coordinates[1] - rhs.coordinates[1];
+        let s = self.coordinates[2] - rhs.coordinates[2];
+
+        Self::new(q, r, s)
+    }
+}
+
+impl Mul<Hex> for Hex {
+    type Output = Self;
+
+    fn mul(self, rhs: Self) -> Self::Output {
+        let q = self.coordinates[0] * rhs.coordinates[0];
+        let r = self.coordinates[1] * rhs.coordinates[1];
+        let s = self.coordinates[2] * rhs.coordinates[2];
+
+        Self::new(q, r, s)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
+pub struct FractionalHex {
+    coordinates: [f32; 3],
+}
+
+impl FractionalHex {
+    pub fn new(coordinates: [f32; 3]) -> Self {
+        Self { coordinates }
+    }
+
+    pub fn q(&self) -> f32 {
+        self.coordinates[0]
+    }
+
+    pub fn r(&self) -> f32 {
+        self.coordinates[1]
+    }
+
+    pub fn s(&self) -> f32 {
+        self.coordinates[2]
+    }
+
+    pub fn round(self) -> Hex {
+        let q = self.q().round();
+        let r = self.r().round();
+        let s = self.s().round();
+
+        let q_diff = f32::abs(q - self.q());
+        let r_diff = f32::abs(r - self.r());
+        let s_diff = f32::abs(s - self.s());
+
+        let mut q = q as i8;
+        let mut r = r as i8;
+        let mut s = s as i8;
+
+        if q_diff > r_diff && q_diff > s_diff {
+            q = -r - s;
+        } else if r_diff > s_diff {
+            r = -q - s;
+        } else {
+            s = -q - r;
         }
+
+        Hex::new(q, r, s)
     }
 }

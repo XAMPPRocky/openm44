@@ -1,4 +1,4 @@
-use crate::hex2::Hex;
+use crate::hex::Hex;
 
 const _EVEN: i8 = 1;
 const ODD: i8 = -1;
